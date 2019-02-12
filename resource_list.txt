@@ -1,0 +1,30 @@
+For editable bounding boxes : 
+
+	1) Using images : 
+		Image editing tools : 	
+			a) https://www194.lunapic.com/editor/; 
+			b) https://www.tutorialspoint.com/add_shape_photo_online.htm 
+		Convert Image to pdf : 
+			a) Check out camscanner
+			b) Online tools
+		Convert pdf to image :
+			Online tools available : a) https://pdftoimage.com/
+
+		(conversion from image to pdf and back is possible)
+
+		Does the bounding box coordinates remain the same after inter conversions? 
+
+	2) Using pdf as is : 
+		Very difficult to get editable pdf online (adobe tool to edit pdf's offline)	
+
+		Found this tool online : 
+		a) https://github.com/jsoma/kull
+
+		b) https://skim-app.sourceforge.io/
+
+For Question Classification : 
+(Seems like an overkill : assuming only question/answers in the pdf, i.e. the format we can do much better.)
+(Hard Coding this part seems like a much more feasible option : Allow for things like heirarchy of questions.)
+
+1) 	http://aclweb.org/anthology/I05-1038
+

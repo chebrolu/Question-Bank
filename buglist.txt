@@ -1,0 +1,23 @@
+Bugs :
+
+1) Looks at questions page wise.
+
+2) Consider conventions like {(a), (b), (c)} ; { Problem 1, Pr...}, etc?
+
+3) A lot of empty space is also recognized as a question or answer (see annotated-final06-with-answers pg 6)
+
+4) check 'annotated-final-solution-pax.pdf' : last page : dont know why a bounding box over there.
+
+
+-------------------------------------------------------------------------------------------------------------
+
+Additional Features : 
+
+1) Incorporate space (empty spaces) features to distinguish, (keep this as an option)
+
+2) Incorporate and use info like format : Q/A, Qs or Qs n As
+
+3) Incoporate conventions where we have a main question and some sub questions. 
+
+4) Add option to display annotated pdf's with editable boxes on a web browser. (Main Problem)
+

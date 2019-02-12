@@ -171,19 +171,15 @@ def get_lines(layout):
 
 def get_question_lines(pages, reg):
 	questions = []
-	question_indices = []
 	for lines in pages:
 		page_ques = []
-		page_indices = []
 		for line in lines:
 			for reg in regs:
 				if reg.match(line.get_text()) != None:
 					page_ques.append([line, reg])
-					page_indices.append(index)
 					break
 		questions.append(page_ques)
-		question_indices.append(page_indices)
-	return questions, question_indices
+	return questions
 
 def get_lines_by_pages(layout):
 	return [get_lines(page) for page in layout]
@@ -319,25 +315,22 @@ def get_bounding_box(lines, next_line = None):
 		x0 = min(x0, line.bbox[0])
 		y0 = min(y0, line.bbox[1])
 		x1 = max(x1, line.bbox[2])
-		# y1 = max(y1, line.bbox[3])
+		y1 = max(y1, line.bbox[3])
 	if next_line:
 		y0 = next_line.bbox[3]
 	return [x0, y0, x1, y1]
 
-def get_ques_Bboxes(lines, que_lines, que_line_indices):
+def get_ques_Bboxes(lines, que_lines):
 	ques_boxes = []
 	for i in range(len(lines)):
 		page_ques_boxes = []
 		page_lines = lines[i]
 		page_que_lines = que_lines[i]
-		page_que_indices = que_line_indices[i]
 		for j in range(len(page_que_lines)):
 			if j != len(page_que_lines)-1:
-				page_ques_boxes.append(get_bounding_box(page_lines[page_que_indices[j]: page_que_indices[j+1]], page_que_lines[j+1][0]))
+				page_ques_boxes.append(get_bounding_box(page_lines[page_lines.index(page_que_lines[j][0]): page_lines.index(page_que_lines[j+1][0])], page_que_lines[j+1][0]))
 			else:
-				page_ques_boxes.append(get_bounding_box(page_lines[page_que_indices[j]:]))
-		if len(page_ques_boxes) == 0:
-			page_ques_boxes.append([5,5,590,750])
+				page_ques_boxes.append(get_bounding_box(page_lines[page_lines.index(page_que_lines[j][0]):]))
 		ques_boxes.append(page_ques_boxes)
 	return ques_boxes
 
@@ -394,14 +387,23 @@ def get_latex_from_LT(LT_list, page_number, image_res = None):
 
 def auto_ques_annot(layout, regs, infile, outfile):
 	lines = get_lines_by_pages(layout)
-	que_lines, que_line_indices = get_question_lines(lines, regs)
-	ques_boxes = get_ques_Bboxes(lines, que_lines, que_line_indices)
+	que_lines = get_question_lines(lines, regs)
+	ques_boxes = get_ques_Bboxes(lines, que_lines)
 	ques_annots = get_annots_for_ques(ques_boxes)
 	add_annots(infile, ques_annots, outfile)
 
+def compare_y(a, b):
+	y1 = a.getObject()["/Rect"][1]
+	y2 = b.getObject()["/Rect"][1]
+	if y1 < y2:
+		return 1
+	elif y1 == y2:
+		return 0
+	else: 
+		return -1
+
 def key_y(a):
 	return a.getObject()["/Rect"][1]
-
 
 def get_latex_from_ann_file(pdf_path):
 	pdfInput = PdfFileReader(open(pdf_path, "rb"))
@@ -427,16 +429,12 @@ if __name__ == '__main__':
 	
 	if len(sys.argv) > 2:
 		if sys.argv[2] == "0":
-			if len(sys.argv) > 3:
-				question_regex_patterns = []
-				delim_pattern = '^\s*' + sys.argv[3]
-				question_regex_patterns.append(delim_pattern)
 			regs = [re.compile(pattern) for pattern in question_regex_patterns]
 			auto_ques_annot(layout, regs, pdf_path, 'annotated.pdf')
 		elif sys.argv[2] == "1":
 			latex_list = get_latex_from_ann_file(pdf_path)
 			file = open("latex.txt", "w")
-			file.write("\n\\bigskip\n\\newline\n".join([latex.encode('utf-8') for latex in latex_list]))
+			file.write("\n\\bigskip\n\\newline\n".join([str(latex.encode('utf-8')) for latex in latex_list]))
 	else:
 		regs = [re.compile(pattern) for pattern in question_regex_patterns]
 		auto_ques_annot(layout, regs, pdf_path, 'annotated.pdf')
