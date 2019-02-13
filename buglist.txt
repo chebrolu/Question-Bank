@@ -21,3 +21,11 @@ Additional Features :
 
 4) Add option to display annotated pdf's with editable boxes on a web browser. (Main Problem)
 
+5) Incorporating font characteristics as delimiters
+
+Solutions  :
+
+1) Instead of boxes keep markers.
+With that end of page heights and last page end of page
+
+2) 
