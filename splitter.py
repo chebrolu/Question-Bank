@@ -29,7 +29,13 @@ sub_question_regex_patterns = ['^\s*[a-zA-Z]\.\s', '^\s*[a-zA-Z]\.\)', '^\s*[a-z
 
 answer_regex_patterns = []
 
+marks_regex_patterns = []
+
 PAGELOWERLIMIT = 50
+
+question_map = {}
+
+question_count = 0
 
 def get_PDF_layout(pdf_path):
 	try:
@@ -180,6 +186,8 @@ def get_question_lines(pages, reg_ques, reg_ans):
 	reg_main_ques = [re.compile(pattern) for pattern in question_regex_patterns]
 	reg_sub_ques = [re.compile(pattern) for pattern in sub_question_regex_patterns]
 	
+	global question_count
+
 	for lines in pages:
 		page_ques = []
 		page_indices = []
@@ -189,17 +197,18 @@ def get_question_lines(pages, reg_ques, reg_ans):
 			for reg in reg_ques:
 				if reg.match(line.get_text()) != None:
 					if reg in reg_main_ques:
-						page_ques.append([line, reg, 'main_ques'])
+						question_count += 1
+						page_ques.append([line, reg, 'main_ques', question_count])
 						# print(line._objs[0])		
 					elif reg in reg_sub_ques:
-						page_ques.append([line, reg, 'sub_ques'])
+						page_ques.append([line, reg, 'sub_ques', question_count])
 					page_indices.append(index)
 					is_ques = 1
 					break
 			if not is_ques:
 				for reg in reg_ans:
 					if reg.match(line.get_text()) != None:
-						page_ques.append([line, reg, 'ans'])
+						page_ques.append([line, reg, 'ans', question_count])
 						page_indices.append(index)
 						break		
 			index += 1
@@ -348,7 +357,19 @@ def get_bounding_box(lines, next_line = None):
 		y0 = max(y0,PAGELOWERLIMIT)
 	return [x0, y0, x1, y1]
 
-def get_ques_Bboxes(lines, que_lines, que_line_indices):
+def get_meta_data(lines, meta_pattern_list):
+	meta = []
+	reg_list = [re.compile(pattern) for pattern in meta_pattern_list]
+	for reg in reg_list:
+		for line in lines :
+			if reg.search(line.get_text()) != None:
+				meta_ext = reg.search(line.get_text()).group(0)
+				meta.append(re.compile('\d+').search(meta_ext).group(0))
+				break
+		meta.append('None')
+	return meta
+
+def get_ques_Bboxes(lines, que_lines, que_line_indices, meta_pattern_list):
 	ques_boxes = []
 	for i in range(len(lines)):
 		page_ques_boxes = []
@@ -357,11 +378,14 @@ def get_ques_Bboxes(lines, que_lines, que_line_indices):
 		page_que_indices = que_line_indices[i]
 		
 		for j in range(len(page_que_lines)):
+
 			if j != len(page_que_lines)-1:
-				page_ques_boxes.append([get_bounding_box(page_lines[page_que_indices[j]: page_que_indices[j+1]], page_que_lines[j+1][0]), page_que_lines[j][2]])
+				meta_list = get_meta_data(page_lines[page_que_indices[j]: page_que_indices[j+1]], meta_pattern_list)
+				page_ques_boxes.append([get_bounding_box(page_lines[page_que_indices[j]: page_que_indices[j+1]], page_que_lines[j+1][0])] + page_que_lines[j][2:4] + meta_list)
 			else:
-				page_ques_boxes.append([get_bounding_box(page_lines[page_que_indices[j]:]), page_que_lines[j][2]])
-		
+				meta_list = get_meta_data(page_lines[page_que_indices[j]:], meta_pattern_list)
+				page_ques_boxes.append([get_bounding_box(page_lines[page_que_indices[j]:])] +  page_que_lines[j][2:4] + meta_list)
+
 		# if len(page_ques_boxes) == 0:
 		# 	page_ques_boxes.append([5,5,590,750])
 		ques_boxes.append(page_ques_boxes)
@@ -372,16 +396,26 @@ def get_annot_from_bbox(bbox, meta, color):
 
 def get_annots_for_ques(ques_boxes, meta = {"author": "", "contents": "question"}, color = [1, 0, 0]):
 	ques_annots = []
+	page_num = 0
 	for page_boxes in ques_boxes:
+		page_num += 1
 		page_annots = []
 		for box in page_boxes:
+			meta["contents"] = "Belongs to Question " + str(box[2]) +"\n" + str(box[1]) + "\n" + "Marks : " + str(box[3])
 			if box[1] == 'ans':
 				color = [0, 1, 0]
 			elif box[1] == 'main_ques':
 				color = [1, 0, 0]
 			elif box[1] == 'sub_ques':
 				color = [0, 0, 1]
-			page_annots.append(get_annot_from_bbox(box[0], meta, color))
+			annot_object = get_annot_from_bbox(box[0], meta, color)
+			page_annots.append(annot_object)
+			if box[1] == 'ans':
+				question_map[box[2]]["ans_list"].append( (page_num, annot_object))
+			elif box[1] == 'main_ques':
+				question_map[box[2]] = {"main_ques" : (page_num, annot_object), "sub_ques_list" : [], "ans_list" : []}
+			elif box[1] == 'sub_ques':
+				question_map[box[2]]["sub_ques_list"].append((page_num, annot_object))
 		ques_annots.append(page_annots)
 	return ques_annots
 
@@ -424,10 +458,10 @@ def get_latex_from_LT(LT_list, page_number, image_res = None):
 		prevfontstyle = ""
 	return latex_str
 
-def auto_ques_annot(layout, regs_ques, regs_ans, infile, outfile):
+def auto_ques_annot(layout, regs_ques, regs_ans, meta_pattern_list, infile, outfile):
 	lines = get_lines_by_pages(layout)
 	que_lines, que_line_indices = get_question_lines(lines, regs_ques, regs_ans)
-	ques_boxes = get_ques_Bboxes(lines, que_lines, que_line_indices)
+	ques_boxes = get_ques_Bboxes(lines, que_lines, que_line_indices, meta_pattern_list)
 	ques_annots = get_annots_for_ques(ques_boxes)
 	add_annots(infile, ques_annots, outfile)
 
@@ -458,7 +492,7 @@ if __name__ == '__main__':
 	
 	if len(sys.argv) > 2:
 		if sys.argv[2] == "0":
-			if len(sys.argv) > 4:
+			if len(sys.argv) > 6:
 				question_regex_patterns = []
 				delim_pattern = '^\s*' + sys.argv[3]
 				question_regex_patterns.append(delim_pattern)
@@ -471,9 +505,13 @@ if __name__ == '__main__':
 				delim_pattern = '^\s*' + sys.argv[5]
 				sub_question_regex_patterns.append(delim_pattern)
 
+				marks_regex_patterns = []
+				delim_pattern = sys.argv[6]
+				marks_regex_patterns.append(delim_pattern)
+
 			regs_ques = [re.compile(pattern) for pattern in question_regex_patterns + sub_question_regex_patterns]
 			regs_ans = [re.compile(pattern) for pattern in answer_regex_patterns]
-			auto_ques_annot(layout, regs_ques, regs_ans, pdf_path, 'annotated.pdf')
+			auto_ques_annot(layout, regs_ques, regs_ans, marks_regex_patterns, pdf_path, 'annotated.pdf')
 		elif sys.argv[2] == "1":
 			latex_list = get_latex_from_ann_file(pdf_path)
 			file = open("latex.txt", "w")
