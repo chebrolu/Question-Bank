@@ -37,6 +37,10 @@ question_map = {}
 
 question_count = 0
 
+## User Defined based on the pdf involved
+actual_page_ht = 792
+disp_page_ht = 740
+
 def get_PDF_layout(pdf_path):
 	try:
 		document = open(pdf_path, 'rb')
@@ -180,39 +184,38 @@ def get_lines(layout):
 			lines = lines + get_lines(node)
 		return lines
 
-def get_question_lines(pages, reg_ques, reg_ans):
+def get_question_lines(pages, reg_all):
 	questions = []
 	question_indices = []
 	reg_main_ques = [re.compile(pattern) for pattern in question_regex_patterns]
 	reg_sub_ques = [re.compile(pattern) for pattern in sub_question_regex_patterns]
-	
+	reg_ans = [re.compile(pattern) for pattern in answer_regex_patterns]
+
 	global question_count
+	question_count = 0
 
 	for lines in pages:
-		page_ques = []
+		page_all = []
 		page_indices = []
 		index = 0
 		for line in lines:
-			is_ques = 0
-			for reg in reg_ques:
+			for reg in reg_all:
 				if reg.match(line.get_text()) != None:
 					if reg in reg_main_ques:
 						question_count += 1
-						page_ques.append([line, reg, 'main_ques', question_count])
-						# print(line._objs[0])		
-					elif reg in reg_sub_ques:
-						page_ques.append([line, reg, 'sub_ques', question_count])
-					page_indices.append(index)
-					is_ques = 1
-					break
-			if not is_ques:
-				for reg in reg_ans:
-					if reg.match(line.get_text()) != None:
-						page_ques.append([line, reg, 'ans', question_count])
+						page_all.append([line, reg, 'main_ques', question_count])
 						page_indices.append(index)
-						break		
+						break	
+					elif reg in reg_sub_ques:
+						page_all.append([line, reg, 'sub_ques', question_count])
+						page_indices.append(index)
+						break
+					elif reg in reg_ans:
+						page_all.append([line, reg, 'ans', question_count])
+						page_indices.append(index)
+						break	
 			index += 1
-		questions.append(page_ques)
+		questions.append(page_all)
 		question_indices.append(page_indices)
 	return questions, question_indices
 
@@ -346,7 +349,12 @@ def add_annots(input_file, annot_maps, output_file = 'output.pdf'):
 
 def get_bounding_box(lines, next_line = None):
 	x0, y0, x1, y1 = lines[0].bbox
+	# print("Starting new box.........")
+	# print()
 	for line in lines:
+		# print(line.get_text())
+		# print(type(line._objs[0]))
+		# print(line._objs[0].fontname)
 		x0 = min(x0, line.bbox[0])
 		y0 = min(y0, line.bbox[1])
 		x1 = max(x1, line.bbox[2])
@@ -361,13 +369,97 @@ def get_meta_data(lines, meta_pattern_list):
 	meta = []
 	reg_list = [re.compile(pattern) for pattern in meta_pattern_list]
 	for reg in reg_list:
+		meta_found = False
 		for line in lines :
 			if reg.search(line.get_text()) != None:
 				meta_ext = reg.search(line.get_text()).group(0)
 				meta.append(re.compile('\d+').search(meta_ext).group(0))
+				meta_found = True
 				break
-		meta.append('None')
+		if (not meta_found):
+			meta.append('None')
 	return meta
+
+def split_question_lines(lines):
+	font_type_count = {}
+	for line in lines:
+		if isinstance(line, LTTextLineHorizontal):	
+			for obj in line._objs:
+				if isinstance(obj, LTChar):
+					if (obj.fontname in font_type_count):
+						font_type_count[obj.fontname] += 1
+					else:
+						font_type_count[obj.fontname] = 0
+
+	sorted_font_type_count = sorted(font_type_count.items(), key=lambda x : x[1], reverse=True)
+	# print(sorted_font_type_count)
+	if (len(sorted_font_type_count) <= 1):
+		return -1
+	else:
+		font_type1 = sorted_font_type_count[0][0]
+		font_type2 = sorted_font_type_count[1][0]
+
+	line_labels = [] 
+	for line in lines:	
+		if isinstance(line, LTTextLineHorizontal):	
+			line_font_type_counts = [0,0,0]
+			for obj in line._objs:
+				if isinstance(obj, LTChar):
+					if (obj.fontname == font_type1):
+						line_font_type_counts[0] += 1
+					elif (obj.fontname == font_type2):
+						line_font_type_counts[1] += 1
+					else:
+						line_font_type_counts[2] += 1						
+			line_labels.append(line_font_type_counts.index(max(line_font_type_counts)))
+		else:
+			line_labels.append(2)
+
+	seen_lab = -1
+	line_idx = -1
+	for idx, lab in enumerate(line_labels):
+		if lab < 2: 
+			if seen_lab == -1 :
+				seen_lab = lab 
+			elif seen_lab != lab : 
+				line_idx = idx
+				break
+
+	return line_idx
+
+def modify_question_lines(lines, que_lines, que_line_indices):
+	final_ques_lines = []
+	final_ques_line_indices = []
+
+	for i in range(len(lines)):
+		final_page_ques_lines = []
+		final_page_ques_line_indices = []
+
+		page_lines = lines[i]
+		page_que_lines = que_lines[i]
+		page_que_indices = que_line_indices[i]
+		
+		for j in range(len(page_que_lines)):
+			
+			final_page_ques_lines.append(page_que_lines[j])
+			final_page_ques_line_indices.append(page_que_indices[j])
+
+			if j != len(page_que_lines)-1:
+				ans_index = split_question_lines(page_lines[page_que_indices[j]: page_que_indices[j+1]])
+				# print(ans_index)
+				if ans_index != -1:
+					final_page_ques_lines.append([page_lines[page_que_indices[j] + ans_index], '', 'ans', page_que_lines[j][3]])
+					final_page_ques_line_indices.append(page_que_indices[j] + ans_index)
+			else:
+				ans_index = split_question_lines(page_lines[page_que_indices[j]:])
+				# print(ans_index)
+				if ans_index != -1:
+					final_page_ques_lines.append([page_lines[page_que_indices[j] + ans_index], '', 'ans', page_que_lines[j][3]])
+					final_page_ques_line_indices.append(page_que_indices[j] + ans_index)
+
+		final_ques_lines.append(final_page_ques_lines)
+		final_ques_line_indices.append(final_page_ques_line_indices)
+	return final_ques_lines, final_ques_line_indices
 
 def get_ques_Bboxes(lines, que_lines, que_line_indices, meta_pattern_list):
 	ques_boxes = []
@@ -378,6 +470,11 @@ def get_ques_Bboxes(lines, que_lines, que_line_indices, meta_pattern_list):
 		page_que_indices = que_line_indices[i]
 		
 		for j in range(len(page_que_lines)):
+			# print("Page lines")
+			# print(type(page_lines))
+			# print(type(page_que_lines))
+			# print("Page q indices")
+			# print(type(page_que_indices))
 
 			if j != len(page_que_lines)-1:
 				meta_list = get_meta_data(page_lines[page_que_indices[j]: page_que_indices[j+1]], meta_pattern_list)
@@ -458,11 +555,94 @@ def get_latex_from_LT(LT_list, page_number, image_res = None):
 		prevfontstyle = ""
 	return latex_str
 
-def auto_ques_annot(layout, regs_ques, regs_ans, meta_pattern_list, infile, outfile):
+def get_selection_boxes(ques_boxes):
+	selection_boxes = []
+	page_num = 0
+	id_num = 1 
+	for page_boxes in ques_boxes:
+		page_num += 1
+		page_selections = []
+		for box in page_boxes:
+			id_num += 1
+			selection_obj = {}
+			color = []
+			if box[1] == 'ans':
+				color = 'rgb(0, 255, 0)'
+			elif box[1] == 'main_ques':
+				color = 'rgb(255, 0, 0)'
+			elif box[1] == 'sub_ques':
+				color = 'rgb(0, 0, 255)'
+			name = box[1] + " " + str(box[2])
+			coordinates_obj = {}
+			coordinates_obj['page'] = page_num
+			coordinates_obj['pageOffset'] = {'left' : 0, 'top' : disp_page_ht*(page_num- 1)}
+			coordinates_obj['height'] = box[0][3] - box[0][1]
+			coordinates_obj['width'] = box[0][2] - box[0][0]
+			coordinates_obj['left'] = box[0][0]
+			coordinates_obj['top'] = actual_page_ht - box[0][3]
+
+			selection_obj['id'] = id_num
+			selection_obj['color'] = color
+			selection_obj['name'] = name
+			selection_obj['coordinates'] = coordinates_obj
+			page_selections.append(selection_obj)
+
+		selection_boxes.append(page_selections)
+	
+
+	selection_boxes_tot = [x for y in selection_boxes for x in y]
+
+	return selection_boxes_tot
+
+def get_selection_boxes_from_PDF(pdf_path, ques_reg1, ans_reg1, sub_ques_reg1, marks_reg1):
+
+	layout = get_PDF_layout(pdf_path)
+
+	global question_regex_patterns
+	global answer_regex_patterns
+	global sub_question_regex_patterns
+	global marks_regex_patterns
+
+	question_regex_patterns = []
+	answer_regex_patterns = []
+	sub_question_regex_patterns = []
+	marks_regex_patterns = []
+
+	if ques_reg1:
+		delim_pattern = '^\s*' + ques_reg1
+		question_regex_patterns.append(delim_pattern)
+
+	if ans_reg1:
+		delim_pattern = '^\s*' + ans_reg1
+		answer_regex_patterns.append(delim_pattern)
+
+	if sub_ques_reg1:
+		delim_pattern = '^\s*' + sub_ques_reg1
+		sub_question_regex_patterns.append(delim_pattern)
+
+	if marks_reg1:
+		delim_pattern = marks_reg1
+		marks_regex_patterns.append(delim_pattern)
+
+	regs_all = [re.compile(pattern) for pattern in question_regex_patterns + sub_question_regex_patterns + answer_regex_patterns]
+	
 	lines = get_lines_by_pages(layout)
-	que_lines, que_line_indices = get_question_lines(lines, regs_ques, regs_ans)
+	que_lines, que_line_indices = get_question_lines(lines, regs_all)
+	ques_boxes = get_ques_Bboxes(lines, que_lines, que_line_indices, marks_regex_patterns)
+	selection_boxes = get_selection_boxes(ques_boxes)
+
+	return selection_boxes	
+
+def auto_ques_annot(layout, regs_all, meta_pattern_list, infile, outfile, use_style):
+	lines = get_lines_by_pages(layout)
+	que_lines, que_line_indices = get_question_lines(lines, regs_all)
+	# if use_style:
+	# 	que_lines, que_line_indices = modify_question_lines(lines, que_lines, que_line_indices)
+	# print(len(lines[0]))
+	# print(que_line_indices)
 	ques_boxes = get_ques_Bboxes(lines, que_lines, que_line_indices, meta_pattern_list)
 	ques_annots = get_annots_for_ques(ques_boxes)
+	selection_boxes = get_selection_boxes(ques_boxes)
 	add_annots(infile, ques_annots, outfile)
 
 def key_y(a):
@@ -489,7 +669,6 @@ if __name__ == '__main__':
 	if len(sys.argv) > 1:
 		pdf_path = sys.argv[1]
 	layout = get_PDF_layout(pdf_path)
-	
 	if len(sys.argv) > 2:
 		if sys.argv[2] == "0":
 			if len(sys.argv) > 6:
@@ -509,9 +688,11 @@ if __name__ == '__main__':
 				delim_pattern = sys.argv[6]
 				marks_regex_patterns.append(delim_pattern)
 
-			regs_ques = [re.compile(pattern) for pattern in question_regex_patterns + sub_question_regex_patterns]
-			regs_ans = [re.compile(pattern) for pattern in answer_regex_patterns]
-			auto_ques_annot(layout, regs_ques, regs_ans, marks_regex_patterns, pdf_path, 'annotated.pdf')
+			regs_all = [re.compile(pattern) for pattern in question_regex_patterns + sub_question_regex_patterns + answer_regex_patterns]
+			# regs_ans = [re.compile(pattern) for pattern in answer_regex_patterns]
+			# use_style = 1
+			use_style = 0
+			auto_ques_annot(layout, regs_all, marks_regex_patterns, pdf_path, 'annotated.pdf', use_style)	
 		elif sys.argv[2] == "1":
 			latex_list = get_latex_from_ann_file(pdf_path)
 			file = open("latex.txt", "w")
