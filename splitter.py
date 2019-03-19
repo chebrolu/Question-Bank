@@ -175,7 +175,10 @@ def group_by_indent(layout, lines):
 
 def get_lines(layout):
 	if isinstance(layout, LTTextLineHorizontal):
-		return [layout]
+		if layout.bbox[1] != layout.bbox[3] and layout.bbox[0] != layout.bbox[2]:
+			return [layout]
+		else:
+			return []
 	elif not hasattr(layout, '__iter__'):
 		return []
 	else:
@@ -219,8 +222,12 @@ def get_question_lines(pages, reg_all):
 		question_indices.append(page_indices)
 	return questions, question_indices
 
+def get_sorted_lines(lines):
+	sorted_lines = sorted(lines, key=lambda x : x.bbox[1], reverse=True)
+	return sorted_lines
+
 def get_lines_by_pages(layout):
-	return [get_lines(page) for page in layout]
+	return [get_sorted_lines(get_lines(page)) for page in layout]
 
 def get_image_locations(layout):
 	image_list = []
@@ -349,18 +356,15 @@ def add_annots(input_file, annot_maps, output_file = 'output.pdf'):
 
 def get_bounding_box(lines, next_line = None):
 	x0, y0, x1, y1 = lines[0].bbox
-	# print("Starting new box.........")
-	# print()
+	
 	for line in lines:
-		# print(line.get_text())
-		# print(type(line._objs[0]))
-		# print(line._objs[0].fontname)
 		x0 = min(x0, line.bbox[0])
 		y0 = min(y0, line.bbox[1])
 		x1 = max(x1, line.bbox[2])
 		# y1 = max(y1, line.bbox[3])
 	if next_line:
 		y0 = next_line.bbox[3]
+		# y0 = max(y0,PAGELOWERLIMIT)
 	else:
 		y0 = max(y0,PAGELOWERLIMIT)
 	return [x0, y0, x1, y1]
@@ -392,7 +396,7 @@ def split_question_lines(lines):
 						font_type_count[obj.fontname] = 0
 
 	sorted_font_type_count = sorted(font_type_count.items(), key=lambda x : x[1], reverse=True)
-	# print(sorted_font_type_count)
+	
 	if (len(sorted_font_type_count) <= 1):
 		return -1
 	else:
@@ -401,7 +405,7 @@ def split_question_lines(lines):
 
 	line_labels = [] 
 	for line in lines:	
-		if isinstance(line, LTTextLineHorizontal):	
+		if isinstance(line, LTTextLineHorizontal):
 			line_font_type_counts = [0,0,0]
 			for obj in line._objs:
 				if isinstance(obj, LTChar):
@@ -446,13 +450,11 @@ def modify_question_lines(lines, que_lines, que_line_indices):
 
 			if j != len(page_que_lines)-1:
 				ans_index = split_question_lines(page_lines[page_que_indices[j]: page_que_indices[j+1]])
-				# print(ans_index)
 				if ans_index != -1:
 					final_page_ques_lines.append([page_lines[page_que_indices[j] + ans_index], '', 'ans', page_que_lines[j][3]])
 					final_page_ques_line_indices.append(page_que_indices[j] + ans_index)
 			else:
 				ans_index = split_question_lines(page_lines[page_que_indices[j]:])
-				# print(ans_index)
 				if ans_index != -1:
 					final_page_ques_lines.append([page_lines[page_que_indices[j] + ans_index], '', 'ans', page_que_lines[j][3]])
 					final_page_ques_line_indices.append(page_que_indices[j] + ans_index)
@@ -470,12 +472,6 @@ def get_ques_Bboxes(lines, que_lines, que_line_indices, meta_pattern_list):
 		page_que_indices = que_line_indices[i]
 		
 		for j in range(len(page_que_lines)):
-			# print("Page lines")
-			# print(type(page_lines))
-			# print(type(page_que_lines))
-			# print("Page q indices")
-			# print(type(page_que_indices))
-
 			if j != len(page_que_lines)-1:
 				meta_list = get_meta_data(page_lines[page_que_indices[j]: page_que_indices[j+1]], meta_pattern_list)
 				page_ques_boxes.append([get_bounding_box(page_lines[page_que_indices[j]: page_que_indices[j+1]], page_que_lines[j+1][0])] + page_que_lines[j][2:4] + meta_list)
@@ -636,10 +632,8 @@ def get_selection_boxes_from_PDF(pdf_path, ques_reg1, ans_reg1, sub_ques_reg1, m
 def auto_ques_annot(layout, regs_all, meta_pattern_list, infile, outfile, use_style):
 	lines = get_lines_by_pages(layout)
 	que_lines, que_line_indices = get_question_lines(lines, regs_all)
-	# if use_style:
-	# 	que_lines, que_line_indices = modify_question_lines(lines, que_lines, que_line_indices)
-	# print(len(lines[0]))
-	# print(que_line_indices)
+	if use_style:
+		que_lines, que_line_indices = modify_question_lines(lines, que_lines, que_line_indices)
 	ques_boxes = get_ques_Bboxes(lines, que_lines, que_line_indices, meta_pattern_list)
 	ques_annots = get_annots_for_ques(ques_boxes)
 	selection_boxes = get_selection_boxes(ques_boxes)
@@ -690,8 +684,8 @@ if __name__ == '__main__':
 
 			regs_all = [re.compile(pattern) for pattern in question_regex_patterns + sub_question_regex_patterns + answer_regex_patterns]
 			# regs_ans = [re.compile(pattern) for pattern in answer_regex_patterns]
-			# use_style = 1
-			use_style = 0
+			use_style = 1
+			# use_style = 0
 			auto_ques_annot(layout, regs_all, marks_regex_patterns, pdf_path, 'annotated.pdf', use_style)	
 		elif sys.argv[2] == "1":
 			latex_list = get_latex_from_ann_file(pdf_path)
