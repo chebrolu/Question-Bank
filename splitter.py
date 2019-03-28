@@ -38,8 +38,7 @@ question_map = {}
 question_count = 0
 
 ## User Defined based on the pdf involved
-actual_page_ht = 792
-disp_page_ht = 740
+page_ht = 792
 
 def get_PDF_layout(pdf_path):
 	try:
@@ -329,7 +328,7 @@ def create_annot_box(x1, y1, x2, y2, meta, color = [1, 0, 0]):
 			FloatObject(x1),
 			FloatObject(y1),
 			FloatObject(x2),
-			FloatObject(y2)
+			FloatObject(y2)	
 		]),
 	})
 	return new_annot
@@ -382,6 +381,8 @@ def get_meta_data(lines, meta_pattern_list):
 				break
 		if (not meta_found):
 			meta.append('None')
+	if len(meta) == 0:
+		meta.append('None')
 	return meta
 
 def split_question_lines(lines):
@@ -431,7 +432,7 @@ def split_question_lines(lines):
 
 	return line_idx
 
-def modify_question_lines(lines, que_lines, que_line_indices):
+def modify_question_lines_style(lines, que_lines, que_line_indices):
 	final_ques_lines = []
 	final_ques_line_indices = []
 
@@ -463,6 +464,45 @@ def modify_question_lines(lines, que_lines, que_line_indices):
 		final_ques_line_indices.append(final_page_ques_line_indices)
 	return final_ques_lines, final_ques_line_indices
 
+def modify_question_lines_extra(lines, que_lines, que_line_indices):
+	final_ques_lines = [que_lines[0]]
+	final_ques_line_indices = [que_line_indices[0]]
+
+	prev_page_ques_line = []
+
+	for i in range(1, len(lines)):
+
+		page_lines = lines[i]
+		page_que_lines = que_lines[i]
+		page_que_indices = que_line_indices[i]
+
+		final_page_ques_lines = []
+		final_page_ques_line_indices = []
+
+		if len(page_lines) > 0:
+			if len(page_que_indices) == 0 or (len(page_que_indices) > 0 and page_que_indices[0] != 0):
+				if len(prev_page_ques_line):
+					temp_question_line = prev_page_ques_line.copy()
+					temp_question_line[0] = page_lines[0]
+					final_page_ques_lines.append(temp_question_line)
+					final_page_ques_line_indices.append(0)
+
+		final_page_ques_lines += page_que_lines
+		final_page_ques_line_indices += page_que_indices
+
+		# print(final_page_ques_line_indices)
+		# print(final_page_ques_lines)
+
+		final_ques_lines.append(final_page_ques_lines)
+		final_ques_line_indices.append(final_page_ques_line_indices)
+		
+		if len(final_ques_lines[i]) > 0:
+			prev_page_ques_line = final_ques_lines[i][-1]
+		else:
+			prev_page_ques_line = []
+	# print(final_ques_line_indices)
+	return final_ques_lines, final_ques_line_indices
+
 def get_ques_Bboxes(lines, que_lines, que_line_indices, meta_pattern_list):
 	ques_boxes = []
 	for i in range(len(lines)):
@@ -473,7 +513,7 @@ def get_ques_Bboxes(lines, que_lines, que_line_indices, meta_pattern_list):
 		
 		for j in range(len(page_que_lines)):
 			if j != len(page_que_lines)-1:
-				meta_list = get_meta_data(page_lines[page_que_indices[j]: page_que_indices[j+1]], meta_pattern_list)
+				meta_list = get_meta_data(page_lines[page_que_indices[j]: page_que_indices[j+1]], meta_pattern_list)	
 				page_ques_boxes.append([get_bounding_box(page_lines[page_que_indices[j]: page_que_indices[j+1]], page_que_lines[j+1][0])] + page_que_lines[j][2:4] + meta_list)
 			else:
 				meta_list = get_meta_data(page_lines[page_que_indices[j]:], meta_pattern_list)
@@ -481,6 +521,7 @@ def get_ques_Bboxes(lines, que_lines, que_line_indices, meta_pattern_list):
 
 		# if len(page_ques_boxes) == 0:
 		# 	page_ques_boxes.append([5,5,590,750])
+
 		ques_boxes.append(page_ques_boxes)
 	return ques_boxes
 
@@ -562,35 +603,44 @@ def get_selection_boxes(ques_boxes):
 			id_num += 1
 			selection_obj = {}
 			color = []
+			selection_type = ''
 			if box[1] == 'ans':
 				color = 'rgb(0, 255, 0)'
+				selection_type = 'Answer'
 			elif box[1] == 'main_ques':
 				color = 'rgb(255, 0, 0)'
+				selection_type = 'Main Question'
 			elif box[1] == 'sub_ques':
 				color = 'rgb(0, 0, 255)'
+				selection_type = 'Sub Question'
+			ques_num = box[2]
 			name = box[1] + " " + str(box[2])
+			marks = box[3]
 			coordinates_obj = {}
 			coordinates_obj['page'] = page_num
-			coordinates_obj['pageOffset'] = {'left' : 0, 'top' : disp_page_ht*(page_num- 1)}
+			coordinates_obj['pageOffset'] = {'left' : 0, 'top' : page_ht * (740 / 792) * (page_num- 1)}
 			coordinates_obj['height'] = box[0][3] - box[0][1]
 			coordinates_obj['width'] = box[0][2] - box[0][0]
 			coordinates_obj['left'] = box[0][0]
-			coordinates_obj['top'] = actual_page_ht - box[0][3]
+			coordinates_obj['top'] = page_ht - box[0][3]
 
 			selection_obj['id'] = id_num
 			selection_obj['color'] = color
 			selection_obj['name'] = name
 			selection_obj['coordinates'] = coordinates_obj
+			selection_obj['marks'] = marks
+			selection_obj['type'] = selection_type
+			selection_obj['qnum'] = ques_num
+
 			page_selections.append(selection_obj)
 
 		selection_boxes.append(page_selections)
 	
-
 	selection_boxes_tot = [x for y in selection_boxes for x in y]
 
 	return selection_boxes_tot
 
-def get_selection_boxes_from_PDF(pdf_path, ques_reg1, ans_reg1, sub_ques_reg1, marks_reg1):
+def get_selection_boxes_from_PDF(pdf_path, ques_reg1, ans_reg1, sub_ques_reg1, marks_reg1, use_style, pdf_dimensions):
 
 	layout = get_PDF_layout(pdf_path)
 
@@ -598,7 +648,9 @@ def get_selection_boxes_from_PDF(pdf_path, ques_reg1, ans_reg1, sub_ques_reg1, m
 	global answer_regex_patterns
 	global sub_question_regex_patterns
 	global marks_regex_patterns
+	global page_ht
 
+	page_ht = pdf_dimensions['height']
 	question_regex_patterns = []
 	answer_regex_patterns = []
 	sub_question_regex_patterns = []
@@ -624,6 +676,11 @@ def get_selection_boxes_from_PDF(pdf_path, ques_reg1, ans_reg1, sub_ques_reg1, m
 	
 	lines = get_lines_by_pages(layout)
 	que_lines, que_line_indices = get_question_lines(lines, regs_all)
+
+	if use_style:
+		que_lines, que_line_indices = modify_question_lines_style(lines, que_lines, que_line_indices)
+	
+	# que_lines, que_line_indices = modify_question_lines_extra(lines, que_lines, que_line_indices)
 	ques_boxes = get_ques_Bboxes(lines, que_lines, que_line_indices, marks_regex_patterns)
 	selection_boxes = get_selection_boxes(ques_boxes)
 
@@ -632,8 +689,12 @@ def get_selection_boxes_from_PDF(pdf_path, ques_reg1, ans_reg1, sub_ques_reg1, m
 def auto_ques_annot(layout, regs_all, meta_pattern_list, infile, outfile, use_style):
 	lines = get_lines_by_pages(layout)
 	que_lines, que_line_indices = get_question_lines(lines, regs_all)
-	if use_style:
-		que_lines, que_line_indices = modify_question_lines(lines, que_lines, que_line_indices)
+	# if use_style:
+	# 	que_lines, que_line_indices = modify_question_lines_style(lines, que_lines, que_line_indices)
+	print(que_line_indices)
+	print('--------------------')
+	que_lines, que_line_indices = modify_question_lines_extra(lines, que_lines, que_line_indices)
+	print(que_line_indices)
 	ques_boxes = get_ques_Bboxes(lines, que_lines, que_line_indices, meta_pattern_list)
 	ques_annots = get_annots_for_ques(ques_boxes)
 	selection_boxes = get_selection_boxes(ques_boxes)

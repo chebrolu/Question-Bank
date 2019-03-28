@@ -8,7 +8,14 @@ Bugs :
 
 4) check 'annotated-final-solution-pax.pdf' : last page : dont know why a bounding box over there.
 
-5) Fix question answers map 
+5) Fix question answers map -- Fixed
+
+6) Fix the UI exp for making a new box (doesn't work with some coordinates -- Drag - show disconnect -- Fixed 
+
+7) Change variable names
+
+8) Check BBox alignment for the new pdf
+
 
 -------------------------------------------------------------------------------------------------------------
 
@@ -20,15 +27,20 @@ Additional Features :
 
 3) Incoporate conventions where we have a main question and some sub questions. -- Done
 
-4) Add option to display annotated pdf's with editable boxes on a web browser. (Main Problem) 
+4) Add option to display annotated pdf's with editable boxes on a web browser. (Main Problem)  -- Done
 
 5) Incorporating font characteristics as delimiters
 
 6) Use argparse
 
-Solutions  :
+7) Try catch server side 
 
-1) Instead of boxes keep markers.
-With that end of page heights and last page end of page
+8) Display error log for user 
 
-2) 
+9) Check all regexes
+
+10) New box details editable/ old box formatable details : Modals/Materialise (check out)
+
+11) Redundant info (color ~~ type) remove from selections
+
+12) 
