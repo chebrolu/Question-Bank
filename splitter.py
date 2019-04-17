@@ -279,15 +279,14 @@ def determine_image_type (stream_first_4_bytes):
 	"""Find out the image file type based on the magic number comparison of the first 4 (or 2) bytes"""
 	file_type = None
 	bytes_as_hex = b2a_hex(stream_first_4_bytes)
-	# print(bytes_as_hex)
-	if bytes_as_hex.startswith('ffd8'):
+	if bytes_as_hex.startswith('ffd8'.encode()):
 		file_type = '.jpeg'
 	elif bytes_as_hex == '89504e47':
 		 # or bytes_as_hex == '789ced9d'
 		file_type = '.png'
 	elif bytes_as_hex == '47494638':
 		file_type = '.gif'
-	elif bytes_as_hex.startswith('424d'):
+	elif bytes_as_hex.startswith(str.encode('424d')):
 		file_type = '.bmp'
 	return file_type
 
@@ -771,7 +770,7 @@ def auto_ques_annot(layout, regs_all, meta_pattern_list, infile, outfile, use_st
 	# print(que_line_indices)
 	ques_boxes = get_ques_Bboxes(lines, que_lines, que_line_indices, meta_pattern_list)
 	ques_annots = get_annots_for_ques(ques_boxes)
-	selection_boxes = get_selection_boxes(ques_boxes)
+	# selection_boxes = get_selection_boxes(ques_boxes)
 	add_annots(infile, ques_annots, outfile)
 
 def key_y(a):
@@ -896,11 +895,11 @@ if __name__ == '__main__':
 		elif sys.argv[2] == "1":
 			latex_list = get_latex_from_ann_file(pdf_path)
 			file = open("latex.txt", "w")
-			file.write("\n\\bigskip\n\\newline\n".join([latex.encode('utf-8') for latex in latex_list]))
+			file.write("\n\\bigskip\n\\newline\n".join([latex.encode('utf-8').decode() for latex in latex_list]))
 	else:
 		regs = [re.compile(pattern) for pattern in question_regex_patterns]
 		auto_ques_annot(layout, regs, pdf_path, 'annotated.pdf')
 		pdf_path = 'annotated.pdf'
 		latex_list = get_latex_from_ann_file(pdf_path)
 		file = open("latex.txt", "w")
-		file.write("\n\\bigskip\n\\newline\n".join([latex.encode('utf-8') for latex in latex_list]))
+		file.write("\n\\bigskip\n\\newline\n".join([latex.encode('utf-8').decode() for latex in latex_list]))
