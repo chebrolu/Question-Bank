@@ -31,7 +31,7 @@ answer_regex_patterns = []
 
 marks_regex_patterns = []
 
-PAGELOWERLIMIT = 50
+PAGELOWERLIMIT = 30
 
 question_map = {}
 
@@ -98,6 +98,28 @@ def get_text_from_box(layout, x1, x2, y1, y2):
 		for node in layout:
 			text = text + str(get_text_from_box(node, x1, x2, y1, y2))
 		return text
+
+
+def get_LT_line_list_from_box(layout, x1, x2, y1, y2):
+
+	LT_list = []
+	if (y1 > y2):
+		swap(y1, y2)
+	if (x1 > x2):
+		swap(x1, x2)
+	if isinstance(layout, LTTextLineHorizontal):
+		x = (layout.bbox[0] + layout.bbox[2])/2.0
+		y = (layout.bbox[1] + layout.bbox[3])/2.0
+		if (x <= x2 and x >= x1 and y >= y1 and y <= y2):
+			return [layout]
+		else:
+			return []
+	else:
+		if not hasattr(layout, '__iter__'):
+			return []
+		for node in layout:
+			LT_list = LT_list + get_LT_line_list_from_box(node, x1, x2, y1, y2)
+		return LT_list
 
 def get_LT_list_from_box(layout, x1, x2, y1, y2):
 
@@ -173,6 +195,7 @@ def group_by_indent(layout, lines):
 			group_by_indent(node, lines)
 
 def get_lines(layout):
+	# print(layout)
 	if isinstance(layout, LTTextLineHorizontal):
 		if layout.bbox[1] != layout.bbox[3] and layout.bbox[0] != layout.bbox[2]:
 			return [layout]
@@ -357,6 +380,7 @@ def get_bounding_box(lines, next_line = None):
 	x0, y0, x1, y1 = lines[0].bbox
 	
 	for line in lines:
+		print(line.get_text())
 		x0 = min(x0, line.bbox[0])
 		y0 = min(y0, line.bbox[1])
 		x1 = max(x1, line.bbox[2])
@@ -366,6 +390,7 @@ def get_bounding_box(lines, next_line = None):
 		# y0 = max(y0,PAGELOWERLIMIT)
 	else:
 		y0 = max(y0,PAGELOWERLIMIT)
+	print("-----------------------------------------")
 	return [x0, y0, x1, y1]
 
 def get_meta_data(lines, meta_pattern_list):
@@ -374,10 +399,14 @@ def get_meta_data(lines, meta_pattern_list):
 	for reg in reg_list:
 		meta_found = False
 		for line in lines :
+			# print(line.get_text())
 			if reg.search(line.get_text()) != None:
+				# print('found')
 				meta_ext = reg.search(line.get_text()).group(0)
 				meta.append(re.compile('\d+').search(meta_ext).group(0))
 				meta_found = True
+				# print('found')
+				# print(re.compile('\d+').search(meta_ext).group(0))
 				break
 		if (not meta_found):
 			meta.append('None')
@@ -469,6 +498,8 @@ def modify_question_lines_extra(lines, que_lines, que_line_indices):
 	final_ques_line_indices = [que_line_indices[0]]
 
 	prev_page_ques_line = []
+	if len(final_ques_lines[0]) > 0:
+			prev_page_ques_line = final_ques_lines[0][-1]
 
 	for i in range(1, len(lines)):
 
@@ -513,7 +544,11 @@ def get_ques_Bboxes(lines, que_lines, que_line_indices, meta_pattern_list):
 		
 		for j in range(len(page_que_lines)):
 			if j != len(page_que_lines)-1:
-				meta_list = get_meta_data(page_lines[page_que_indices[j]: page_que_indices[j+1]], meta_pattern_list)	
+				# print(i)
+				# print(j)
+				# print(page_lines[page_que_indices[j]].get_text())
+				meta_list = get_meta_data(page_lines[page_que_indices[j]: page_que_indices[j+1]], meta_pattern_list)
+				# print(meta_list)	
 				page_ques_boxes.append([get_bounding_box(page_lines[page_que_indices[j]: page_que_indices[j+1]], page_que_lines[j+1][0])] + page_que_lines[j][2:4] + meta_list)
 			else:
 				meta_list = get_meta_data(page_lines[page_que_indices[j]:], meta_pattern_list)
@@ -592,7 +627,14 @@ def get_latex_from_LT(LT_list, page_number, image_res = None):
 		prevfontstyle = ""
 	return latex_str
 
-def get_selection_boxes(ques_boxes):
+def get_text_from_LTList(LT_list):
+	text_str = ""
+	for LT_obj in LT_list:
+		if isinstance(LT_obj, LTTextLineHorizontal):
+			text_str += LT_obj.get_text()
+	return text_str
+
+def get_selection_boxes(layout, ques_boxes):
 	selection_boxes = []
 	page_num = 0
 	id_num = 1 
@@ -604,25 +646,30 @@ def get_selection_boxes(ques_boxes):
 			selection_obj = {}
 			color = []
 			selection_type = ''
+			question_type = ''
+			options = []
 			if box[1] == 'ans':
 				color = 'rgb(0, 255, 0)'
 				selection_type = 'Answer'
 			elif box[1] == 'main_ques':
 				color = 'rgb(255, 0, 0)'
 				selection_type = 'Main Question'
+				question_type = 'Descriptive'
 			elif box[1] == 'sub_ques':
 				color = 'rgb(0, 0, 255)'
 				selection_type = 'Sub Question'
+				question_type = 'Descriptive'
+
 			ques_num = box[2]
 			name = box[1] + " " + str(box[2])
 			marks = box[3]
 			coordinates_obj = {}
 			coordinates_obj['page'] = page_num
 			coordinates_obj['pageOffset'] = {'left' : 0, 'top' : page_ht * (740 / 792) * (page_num- 1)}
-			coordinates_obj['height'] = box[0][3] - box[0][1]
-			coordinates_obj['width'] = box[0][2] - box[0][0]
-			coordinates_obj['left'] = box[0][0]
-			coordinates_obj['top'] = page_ht - box[0][3]
+			coordinates_obj['height'] = (box[0][3] - box[0][1])* 740 / 792.0
+			coordinates_obj['width'] = (box[0][2] - box[0][0])* 740 / 792.0
+			coordinates_obj['left'] = (box[0][0])* 740 / 792.0
+			coordinates_obj['top'] = (page_ht - box[0][3])* 740 / 792.0
 
 			selection_obj['id'] = id_num
 			selection_obj['color'] = color
@@ -631,6 +678,9 @@ def get_selection_boxes(ques_boxes):
 			selection_obj['marks'] = marks
 			selection_obj['type'] = selection_type
 			selection_obj['qnum'] = ques_num
+			selection_obj['textData'] = extract_text_from_bbox_coords(layout, page_num, box[0])
+			selection_obj['question_type'] = question_type
+			selection_obj['options'] = options
 
 			page_selections.append(selection_obj)
 
@@ -640,8 +690,9 @@ def get_selection_boxes(ques_boxes):
 
 	return selection_boxes_tot
 
-def get_selection_boxes_from_PDF(pdf_path, ques_reg1, ans_reg1, sub_ques_reg1, marks_reg1, use_style, pdf_dimensions):
+def get_selection_boxes_from_PDF(pdf_path, ques_reg, ans_reg, sub_ques_reg, marks_reg, use_style, pdf_dimensions, question_type, mcq_reg):
 
+	# print("Hey at the top")
 	layout = get_PDF_layout(pdf_path)
 
 	global question_regex_patterns
@@ -656,20 +707,20 @@ def get_selection_boxes_from_PDF(pdf_path, ques_reg1, ans_reg1, sub_ques_reg1, m
 	sub_question_regex_patterns = []
 	marks_regex_patterns = []
 
-	if ques_reg1:
-		delim_pattern = '^\s*' + ques_reg1
+	if ques_reg:
+		delim_pattern = '^\s*' + ques_reg
 		question_regex_patterns.append(delim_pattern)
 
-	if ans_reg1:
-		delim_pattern = '^\s*' + ans_reg1
+	if ans_reg:
+		delim_pattern = '^\s*' + ans_reg
 		answer_regex_patterns.append(delim_pattern)
 
-	if sub_ques_reg1:
-		delim_pattern = '^\s*' + sub_ques_reg1
+	if sub_ques_reg:
+		delim_pattern = '^\s*' + sub_ques_reg
 		sub_question_regex_patterns.append(delim_pattern)
 
-	if marks_reg1:
-		delim_pattern = marks_reg1
+	if marks_reg:
+		delim_pattern = marks_reg
 		marks_regex_patterns.append(delim_pattern)
 
 	regs_all = [re.compile(pattern) for pattern in question_regex_patterns + sub_question_regex_patterns + answer_regex_patterns]
@@ -680,21 +731,44 @@ def get_selection_boxes_from_PDF(pdf_path, ques_reg1, ans_reg1, sub_ques_reg1, m
 	if use_style:
 		que_lines, que_line_indices = modify_question_lines_style(lines, que_lines, que_line_indices)
 	
-	# que_lines, que_line_indices = modify_question_lines_extra(lines, que_lines, que_line_indices)
+	# print(que_line_indices)
+	que_lines, que_line_indices = modify_question_lines_extra(lines, que_lines, que_line_indices)
+	# print(que_line_indices)
 	ques_boxes = get_ques_Bboxes(lines, que_lines, que_line_indices, marks_regex_patterns)
-	selection_boxes = get_selection_boxes(ques_boxes)
 
+	# print(ques_boxes[0][0])
+	
+	selection_boxes = get_selection_boxes(layout, ques_boxes)
+
+	if question_type == 'MCQ':
+		# delim_pattern =  '^\s*' + mcq_reg
+		# reg_mcq = re.compile(delim_pattern)
+		selection_boxes = extract_options(selection_boxes, mcq_reg)
+	
+	# print (selection_boxes[1:5])		
 	return selection_boxes	
+
+def extract_options(selection_boxes, mcq_reg):
+	for selection_box in selection_boxes:
+		if selection_box['type'] != 'Ans':
+			selection_box['question_type'] = 'MCQ'
+			content = re.split(mcq_reg, selection_box['textData'])
+			selection_box['textData'] = content[0]
+			optionsData = []
+			for option in content[1:]:
+				optionsData.append({'optionText' : option})
+			selection_box['options'] = optionsData
+	return selection_boxes
 
 def auto_ques_annot(layout, regs_all, meta_pattern_list, infile, outfile, use_style):
 	lines = get_lines_by_pages(layout)
 	que_lines, que_line_indices = get_question_lines(lines, regs_all)
 	# if use_style:
 	# 	que_lines, que_line_indices = modify_question_lines_style(lines, que_lines, que_line_indices)
-	print(que_line_indices)
-	print('--------------------')
+	# print(que_line_indices)
+	# print('--------------------')
 	que_lines, que_line_indices = modify_question_lines_extra(lines, que_lines, que_line_indices)
-	print(que_line_indices)
+	# print(que_line_indices)
 	ques_boxes = get_ques_Bboxes(lines, que_lines, que_line_indices, meta_pattern_list)
 	ques_annots = get_annots_for_ques(ques_boxes)
 	selection_boxes = get_selection_boxes(ques_boxes)
@@ -702,6 +776,77 @@ def auto_ques_annot(layout, regs_all, meta_pattern_list, infile, outfile, use_st
 
 def key_y(a):
 	return a.getObject()["/Rect"][1]
+
+def get_bounding_box_coords(selection_coordinates, page_ht):
+
+			# 	coordinates_obj['height'] = (box[0][3] - box[0][1])* 740 / 792.0
+			# coordinates_obj['width'] = (box[0][2] - box[0][0])* 740 / 792.0
+			# coordinates_obj['left'] = (box[0][0])* 740 / 792.0
+			# coordinates_obj['top'] = (page_ht - box[0][3])* 740 / 792.0
+	newSelection_coordinates = selection_coordinates
+	newSelection_coordinates['height'] /= (740 / 792.0)	
+	newSelection_coordinates['width'] /= (740 / 792.0)	
+	newSelection_coordinates['left'] /= (740 / 792.0)	
+	newSelection_coordinates['top'] /= (740 / 792.0)	
+
+	bbox = [0]*4
+	bbox[0] = newSelection_coordinates['left']
+	bbox[3] = page_ht - newSelection_coordinates['top']
+	bbox[1] = bbox[3] - newSelection_coordinates['height']
+	bbox[2] = bbox[0] + newSelection_coordinates['width']  
+
+	return bbox
+
+def get_sorted_selections(selections):
+	sorted_selections = sorted(selections, key=lambda x : (x['coordinates']['page'], x['coordinates']['top']))
+	return sorted_selections
+
+def extract_text_from_pdf_selections(pdf_path, selections, pdf_dimensions):
+	# try:
+	# print("Hye")
+	pdfInput = PdfFileReader(open(pdf_path, "rb"))
+	# image_res = get_image_res(pdfInput)
+	page_ht = pdf_dimensions['height']
+	sorted_selections = get_sorted_selections(selections)
+	
+	# layout = get_PDF_layout(pdf_path)
+	# for curr_selection in sorted_selections:
+	# 	curr_bbox = get_bounding_box_coords(curr_selection, page_ht)
+	# 	LT_list = get_LT_line_list_from_box(layout[curr_selection['coordinates']['page'] - 1], curr_bbox[0], curr_bbox[2], curr_bbox[1], curr_bbox[3])
+	# 	LT_list = get_sorted_lines(LT_list)
+	# 	text_list.append(get_text_from_LTList(LT_list))
+
+	# print(sorted_selections[0])
+	text_list = [selection['textData'] for selection in sorted_selections]
+
+	file = open("text.txt", "w")
+	file.write("\n".join(text_list))
+	# print(text_list)
+	return text_list
+	# except:
+	# 	return False
+
+def extract_text_from_bbox_coords(layout, page_num, bbox):
+	LT_list = get_LT_line_list_from_box(layout[page_num - 1], bbox[0], bbox[2], bbox[1], bbox[3])
+	LT_list = get_sorted_lines(LT_list)
+	text_data = get_text_from_LTList(LT_list)
+	return text_data	
+
+def extract_text_from_current_selection(pdf_path, page_num, pdf_dimensions, coordinates):
+		# print("Hye")
+	pdfInput = PdfFileReader(open(pdf_path, "rb"))
+	# image_res = get_image_res(pdfInput)
+	page_ht = pdf_dimensions['height']
+	# sorted_selections = get_sorted_selections(selections)
+	text_data = ''
+	layout = get_PDF_layout(pdf_path)
+	curr_bbox = get_bounding_box_coords(coordinates, page_ht)
+	LT_list = get_LT_line_list_from_box(layout[page_num - 1], curr_bbox[0], curr_bbox[2], curr_bbox[1], curr_bbox[3])
+	LT_list = get_sorted_lines(LT_list)
+	text_data = get_text_from_LTList(LT_list)
+	# print(text_data)
+	return text_data
+	
 
 def get_latex_from_ann_file(pdf_path):
 	pdfInput = PdfFileReader(open(pdf_path, "rb"))
