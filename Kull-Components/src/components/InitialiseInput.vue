@@ -8,12 +8,15 @@
        
        <select type="text" name="main_ques_regex" v-on:change="checkValMainQuesRegex($event)" ref="main_ques_regex" > 
         <option value="">None</option>
-        <option value="\d+\.">num.</option>
-        <option value="\d+">num</option>
-        <option value="\d+\)">num)</option>
-        <option value="Problem\s\d+">Problem num</option>
-        <option value="Question\s\d+">Question num</option>
-        <option value="Q\s\d+">Q num</option>
+        <option value="\d+\.">&#60;num&#62;.</option>
+        <option value="\d+">&#60;num&#62;</option>
+        <option value="\d+\)">&#60;num&#62;)</option>
+        <option value="\(\d+">(&#60;num&#62;</option>
+        <option value="Problem\s\d+">Problem &#60;num&#62;</option>
+        <option value="Question\s\d+">Question &#60;num&#62;</option>
+        <option value="Q\s\d+">Q &#60;num&#62;</option>
+        <option value=".*\s+Problem">&#60;text&#62; Problem</option>
+        <option value=".*\s+Question">&#60;text&#62; Question</option>
         <option value="other">other</option>
        </select>
        <input type="text" name="main_ques_regex_other" ref="main_ques_regex_other" style='display:none;'/><br>
@@ -21,11 +24,15 @@
        Sub Question Regex<br>
        <select type="text" name="sub_ques_regex" v-on:change="checkValSubQuesRegex($event)" ref="sub_ques_regex" > 
         <option value="">None</option>
-        <option value="\([a-zA-Z]\)">(alpha)</option>
-        <option value="[a-zA-Z]\)">alpha)</option>
-        <option value="[a-zA-Z]\.">alpha.</option>
-        <option value="\d+\)">num)</option>
+        <option value="\([a-zA-Z]\)">(&#60;alpha&#62;)</option>
+        <option value="[a-zA-Z]\)">&#60;alpha&#62;)</option>
+        <option value="[a-zA-Z]\.">&#60;alpha&#62;.</option>
+        <option value="\d+\)">&#60;num&#62;)</option>
+        <option value="\d+\.\d+">&#60;num&#62;.&#60;num&#62;</option>
+        <option value="(?i)[MDCLXVI]+\)">&#60;roman&#62; )</option>
+        <option value="(?i)[MDCLXVI]+\.">&#60;roman&#62; .</option>
         <option value="other">other</option>
+
        </select>
        <input type="text" name="sub_ques_regex_other" ref="sub_ques_regex_other" style='display:none;'/><br>
        
@@ -33,13 +40,13 @@
          MCQ Regex<br>
          <select type="text" name="mcq_regex" v-on:change="checkValMCQRegex($event)" ref="mcq_regex" > 
           <option value="">None</option>
-          <option value="\([a-zA-Z]\)">(alpha)</option>
-          <option value="[a-zA-Z]\)">alpha)</option>
-          <option value="[a-zA-Z]\.">alpha.</option>
-          <option value="\d+\)">num)</option>
-          <option value="\d+\.">num.</option>
-          <option value="\d+">num</option>
-          <option value="\d+\)">num)</option>
+          <option value="\([a-zA-Z]\)">(&#60;alpha&#62;)</option>
+          <option value="[a-zA-Z]\)">&#60;alpha&#62;)</option>
+          <option value="[a-zA-Z]\.">&#60;alpha&#62;.</option>
+          <option value="\d+\)">&#60;num&#62;)</option>
+          <option value="\d+\.">&#60;num&#62;.</option>
+          <option value="\d+">&#60;num&#62;</option>
+          <option value="\d+\)">&#60;num&#62;)</option>
           <option value="other">other</option>
          </select>
          <input type="text" name="mcq_regex_other" ref="mcq_regex_other" style='display:none;'/><br>
@@ -51,6 +58,7 @@
         <option value="Answer">Answer</option>
         <option value="Solution">Solution</option>
         <option value="Ans">Ans</option>
+        <option value="A:">A:</option>
         <option value="other">other</option>
        </select>
        <input type="text" name="ans_regex_other" ref="ans_regex_other" style='display:none;'/><br>
@@ -59,10 +67,12 @@
        Marks Regex<br>
        <select type="text" name="marks_regex" v-on:change="checkValMarksRegex($event)" ref="marks_regex" > 
         <option value="">None</option>
-        <option value="\(\d+\spoints\)">(num points)</option>
-        <option value="\(\d+\smarks\)">(num marks)</option>
-        <option value="\(\d+\spts\)">(num pts)</option>
-        <option value="Marks:\s+\d+">Marks: num</option>
+        <option value="\(\d+\spoints\)">(&#60;num&#62; points)</option>
+        <option value="\(\d+\smarks\)">(&#60;num&#62; marks)</option>
+        <option value="\(\d+\spts\)">(&#60;num&#62; pts)</option>
+        <option value="\[\d+\spoints\]">[&#60;num&#62; points]</option>
+        <option value="\[\d+\smarks\]">[&#60;num&#62; marks]</option>
+        <option value="\[\d+\spts\]">[&#60;num&#62; pts]</option>
         <option value="other">other</option>
        </select>
        <input type="text" name="marks_regex_other" ref="marks_regex_other" style='display:none;'/><br>
@@ -74,7 +84,7 @@
        <input type="text" name="tot_marks" ref="tot_marks"> <br>
 
        <!-- <input type="text" name="marks_regex" ref="marks_regex" > <br> -->
-       PDF Directory ending with : <br>
+       PDF Directory : <br>
        <input type="text" name="pdf_dir" ref="pdf_dir"> <br>
        <button type="button" v-on:click="initBbox">Initialise Bounding Boxes</button>
        <button type="button" v-on:click="submitChanges">Submit Changes</button>
@@ -143,7 +153,7 @@ export default {
       // this.subQuesReg = '\\([a-zA-Z]\\)'
       // this.ansReg = 'Answer'
       // this.marksReg = '\\(\\d+\\spoints\\)'
-      this.pdfPath = this.pdfDir + this.name
+      this.pdfPath = this.pdfDir + '/' + this.name
       this.setPDFPath(this.pdfPath)
       this.inputData = {}
       this.inputData['ques_reg'] = this.quesReg

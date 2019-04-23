@@ -121,6 +121,28 @@ def get_LT_line_list_from_box(layout, x1, x2, y1, y2):
 			LT_list = LT_list + get_LT_line_list_from_box(node, x1, x2, y1, y2)
 		return LT_list
 
+def get_LT_image_list_from_box(layout, x1, x2, y1, y2):
+	LT_list = []
+	if (y1 > y2):
+		swap(y1, y2)
+	if (x1 > x2):
+		swap(x1, x2)
+	if not hasattr(layout, '__iter__'):
+		if isinstance(layout, LTImage) or isinstance(layout, LTFigure):
+			# print('LTFigure')
+			x = (layout.bbox[0] + layout.bbox[2])/2.0
+			y = (layout.bbox[1] + layout.bbox[3])/2.0
+			if (y >= y1 and y <= y2):
+				return [layout]
+			else:
+				return []
+		else:
+			return []
+	else:
+		for node in layout:
+			LT_list = LT_list + get_LT_image_list_from_box(node, x1, x2, y1, y2)
+		return LT_list
+
 def get_LT_list_from_box(layout, x1, x2, y1, y2):
 
 	LT_list = []
@@ -279,6 +301,7 @@ def determine_image_type (stream_first_4_bytes):
 	"""Find out the image file type based on the magic number comparison of the first 4 (or 2) bytes"""
 	file_type = None
 	bytes_as_hex = b2a_hex(stream_first_4_bytes)
+	# print(bytes_as_hex)
 	if bytes_as_hex.startswith('ffd8'.encode()):
 		file_type = '.jpeg'
 	elif bytes_as_hex == '89504e47':
@@ -286,7 +309,7 @@ def determine_image_type (stream_first_4_bytes):
 		file_type = '.png'
 	elif bytes_as_hex == '47494638':
 		file_type = '.gif'
-	elif bytes_as_hex.startswith(str.encode('424d')):
+	elif bytes_as_hex.startswith('424d'.encode()):
 		file_type = '.bmp'
 	return file_type
 
@@ -302,24 +325,29 @@ def save_image (lt_image, page_number, images_folder, pypdf_obj = None):
 				if write_file(images_folder, file_name, file_stream, flags='wb'):
 					result = file_name
 			elif pypdf_obj:
-				try:
-					pypdf_obj = pypdf_obj["/"+lt_image.name]
-					size = (pypdf_obj['/Width'], pypdf_obj['/Height'])
-					data = pypdf_obj.getData()
-					if pypdf_obj['/ColorSpace'] == '/DeviceRGB':
-						mode = "RGB"
-					else:
-						mode = "P"
-					img = Image.frombytes(mode, size, data)
-					file_name = ''.join([str(page_number), '_', lt_image.name, '.png'])
-					form = Image.registered_extensions()['.png']
-					fp = io.BytesIO()
-					img.save(fp, form)
-					if write_file(images_folder, file_name, fp.getvalue(), flags='wb'):
-						result = file_name
-				except Exception as e:
-					print(e)
-					return None
+				# try:
+				# print(pypdf_obj)
+				pypdf_obj = pypdf_obj["/"+lt_image.name]
+				# print(pypdf_obj)
+
+				size = (pypdf_obj['/Width'], pypdf_obj['/Height'])
+				data = pypdf_obj.getData()
+				if ('/ColorSpace' in pypdf_obj) and pypdf_obj['/ColorSpace'] == '/DeviceRGB':
+					mode = "RGB"
+				else:
+					mode = "P"
+				img = Image.frombytes(mode, size, data)
+				file_name = ''.join([str(page_number), '_', lt_image.name, '.png'])
+				form = Image.registered_extensions()['.png']
+				fp = io.BytesIO()
+				img.save(fp, form)
+				if write_file(images_folder, file_name, fp.getvalue(), flags='wb'):
+					result = file_name
+
+				# except Exception as e:
+				# 	print("Exception")
+				# 	print(e)
+				# 	return None
 	return result
 
 def get_pypdf_images(pdf_path):
@@ -379,7 +407,7 @@ def get_bounding_box(lines, next_line = None):
 	x0, y0, x1, y1 = lines[0].bbox
 	
 	for line in lines:
-		print(line.get_text())
+		# print(line.get_text())
 		x0 = min(x0, line.bbox[0])
 		y0 = min(y0, line.bbox[1])
 		x1 = max(x1, line.bbox[2])
@@ -389,7 +417,7 @@ def get_bounding_box(lines, next_line = None):
 		# y0 = max(y0,PAGELOWERLIMIT)
 	else:
 		y0 = max(y0,PAGELOWERLIMIT)
-	print("-----------------------------------------")
+	# print("-----------------------------------------")
 	return [x0, y0, x1, y1]
 
 def get_meta_data(lines, meta_pattern_list):
@@ -664,11 +692,11 @@ def get_selection_boxes(layout, ques_boxes):
 			marks = box[3]
 			coordinates_obj = {}
 			coordinates_obj['page'] = page_num
-			coordinates_obj['pageOffset'] = {'left' : 0, 'top' : page_ht * (740 / 792) * (page_num- 1)}
-			coordinates_obj['height'] = (box[0][3] - box[0][1])* 740 / 792.0
-			coordinates_obj['width'] = (box[0][2] - box[0][0])* 740 / 792.0
-			coordinates_obj['left'] = (box[0][0])* 740 / 792.0
-			coordinates_obj['top'] = (page_ht - box[0][3])* 740 / 792.0
+			coordinates_obj['pageOffset'] = {'left' : 0, 'top' : (792-page_ht) / 10 + int((page_ht * 740 / 792.0) * (page_num- 1))}
+			coordinates_obj['height'] = int((box[0][3] - box[0][1])* 740 / 792.0)
+			coordinates_obj['width'] = int((box[0][2] - box[0][0])* 740 / 792.0)
+			coordinates_obj['left'] = int((box[0][0])* 740 / 792.0)
+			coordinates_obj['top'] = int((page_ht - box[0][3])* 740 / 792.0)
 
 			selection_obj['id'] = id_num
 			selection_obj['color'] = color
@@ -802,18 +830,28 @@ def get_sorted_selections(selections):
 
 def extract_text_from_pdf_selections(pdf_path, selections, pdf_dimensions):
 	# try:
-	# print("Hye")
 	pdfInput = PdfFileReader(open(pdf_path, "rb"))
-	# image_res = get_image_res(pdfInput)
+	image_res = get_image_res(pdfInput)
 	page_ht = pdf_dimensions['height']
 	sorted_selections = get_sorted_selections(selections)
-	
-	# layout = get_PDF_layout(pdf_path)
-	# for curr_selection in sorted_selections:
-	# 	curr_bbox = get_bounding_box_coords(curr_selection, page_ht)
-	# 	LT_list = get_LT_line_list_from_box(layout[curr_selection['coordinates']['page'] - 1], curr_bbox[0], curr_bbox[2], curr_bbox[1], curr_bbox[3])
-	# 	LT_list = get_sorted_lines(LT_list)
+	text_list = []
+	layout = get_PDF_layout(pdf_path)
+	for curr_selection in sorted_selections:
+		curr_bbox = get_bounding_box_coords(curr_selection['coordinates'], page_ht)
+		LT_list_images = get_LT_image_list_from_box(layout[curr_selection['coordinates']['page'] - 1], curr_bbox[0], curr_bbox[2], curr_bbox[1], curr_bbox[3])
 	# 	text_list.append(get_text_from_LTList(LT_list))
+		curr_text = curr_selection['textData']
+		if len(LT_list_images):
+			curr_text += "Images: \n"
+			print(curr_selection['coordinates']['page'])
+			print(LT_list_images)
+			print(len(LT_list_images))
+		for LT_img in LT_list_images:
+			image_res = None
+			img_name = save_image(LT_img, curr_selection['coordinates']['page'], "images", image_res)
+			if img_name:
+				curr_text += img_name + "\n"
+		text_list.append(curr_text) 
 
 	# print(sorted_selections[0])
 	text_list = [selection['textData'] for selection in sorted_selections]
