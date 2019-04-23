@@ -1,6 +1,6 @@
 <template>
   <div class='selection-box' :style="styleObject">
-    <modalAdaptive :id="id" :updateSelectionById="updateSelectionById" :getSelectionById="getSelectionById">
+    <modalAdaptive :id="id" :updateSelectionById="updateSelectionById" :getSelectionById="getSelectionById" :getComplement="getComplement">
     </modalAdaptive>
     <modals-container />
     <span>{{ name }}</span>
@@ -12,6 +12,7 @@
         id: id,
         updateSelectionById: updateSelectionById,
         getSelectionById: getSelectionById,
+        getComplement: getComplement,
         marksScale: marksScale
       })"
       v-if="showButton">
@@ -26,7 +27,7 @@ import modalAdaptive from './Modal.vue'
 
 export default {
   name: 'area-select',
-  props: ['coordinates', 'color', 'name', 'active', 'id', 'deleteAreaSelection', 'showButton', 'updateSelectionById', 'getSelectionById', 'marksScale'],
+  props: ['coordinates', 'color', 'name', 'active', 'id', 'deleteAreaSelection', 'showButton', 'updateSelectionById', 'getComplement', 'getSelectionById', 'marksScale'],
   components: {
     modalAdaptive
   },

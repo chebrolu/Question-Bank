@@ -12,7 +12,7 @@
       <InitialiseInput :batchUpdateSelections="batchUpdateSelections" :name="name" :changeMarksScale="changeMarksScale" :pdfDimensions="pdfDimensions" :getSelections="getSelections" :setPDFPath="setPDFPath"></InitialiseInput>
     </div>
     <div class='content'>
-      <Annotator :src="src" :setPdfSize="setPdfSize" :arrayBuffer="arrayBuffer" :name="name" :selections="selections" :addSelection="addSelection" :deleteSelection="deleteSelection" :getSelectionById="getSelectionById" :updateSelectionById="updateSelectionById" :marksScale="marksScale"></Annotator>
+      <Annotator :src="src" :setPdfSize="setPdfSize" :arrayBuffer="arrayBuffer" :name="name" :selections="selections" :addSelection="addSelection" :deleteSelection="deleteSelection" :getSelectionById="getSelectionById" :updateSelectionById="updateSelectionById" :getComplement="getComplement" :marksScale="marksScale"></Annotator>
     </div>
   </div>
 </template>
@@ -75,6 +75,21 @@ export default {
         height: height
       }
     },
+    compareFunc: function (a, b) {
+      if (a['coordinates']['page'] < b['coordinates']['page']) {
+        return -1
+      } else {
+        if (a['coordinates']['page'] === b['coordinates']['page']) {
+          if (a['coordinates']['top'] < b['coordinates']['top']) {
+            return -1
+          } else {
+            return 1
+          }
+        } else {
+          return 1
+        }
+      }
+    },
     addSelection: function (coords) {
       if (coords.height === 0 || coords.width === 0) {
         return
@@ -114,6 +129,7 @@ export default {
             qtype: 'Descriptive',
             options: []
           })
+          context.selections.sort(context.compareFunc)
         },
         error: function (request, status, error) {
           console.log(error)
@@ -136,6 +152,40 @@ export default {
     updateSelectionById: function (id, data) {
       this.deleteSelection(id)
       this.addSelectionById(data)
+    },
+    getComplement: function (id) {
+      var i = 0
+      var j = 0
+      for (i = 0; i < this.selections.length; i++) {
+        if (this.selections[i].id === id) {
+          break
+        }
+      }
+      var type = this.selections[i].type
+      if (type === 'Main Question') {
+        for (j = i + 1; j < this.selections.length; j++) {
+          if (this.selections[j].type !== type) {
+            if (this.selections[j].type === 'Sub Question') {
+              return ''
+            } else {
+              return this.selections[j].textData
+            }
+          }
+        }
+      } else if (type === 'Sub Question') {
+        for (j = i + 1; j < this.selections.length; j++) {
+          if (this.selections[j].type !== type) {
+            return this.selections[j].textData
+          }
+        }
+      } else {
+        for (j = i - 1; j >= 0; j--) {
+          if (this.selections[j].type !== type) {
+            return this.selections[j].textData
+          }
+        }
+      }
+      return ''
     },
     getSelectionById: function (id) {
       this.tempSelectionArr = this.selections.filter(selection => selection.id === id)

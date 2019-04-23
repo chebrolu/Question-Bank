@@ -20,6 +20,7 @@
         :showButton="true"
         :getSelectionById="getSelectionById"
         :updateSelectionById="updateSelectionById"
+        :getComplement="getComplement"
         :marksScale="marksScale"
       ></AreaSelect>
     </div>
@@ -38,7 +39,7 @@ export default {
     PDF,
     SelectionPreview
   },
-  props: ['src', 'name', 'selections', 'addSelection', 'deleteSelection', 'arrayBuffer', 'setPdfSize', 'updateSelectionById', 'getSelectionById', 'marksScale'],
+  props: ['src', 'name', 'selections', 'addSelection', 'deleteSelection', 'arrayBuffer', 'setPdfSize', 'updateSelectionById', 'getComplement', 'getSelectionById', 'marksScale'],
   data () {
     return {
       down: false,

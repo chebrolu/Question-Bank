@@ -25,11 +25,11 @@
       >
         Option {{id + 1}} : <input type="text" v-model="opt.optionText">
       </div>
-        
+      <!-- This vif part not working for now -->
+      <p v:if="isComplementPresent"> {{complementType}} : {{localSelectionComplementText}} </p>
       </input>
       <button class="button-class" @click="saveData">Save Changed Data</button>
       <button class="button-class" @click="closeModal">Close Model</button>
-    
     </div>
   </modal>
 </template>
@@ -43,6 +43,7 @@ export default {
     beforeOpen (event) {
       this.id = event.params.id
       this.updateSelectionById = event.params.updateSelectionById
+      this.getComplement = event.params.getComplement
       this.getSelectionById = event.params.getSelectionById
       this.marksScale = event.params.marksScale
       this.localSelection = this.getSelectionById(this.id)
@@ -52,6 +53,19 @@ export default {
       this.textData = this.localSelection.textData
       this.options = this.localSelection.options
       this.questionType = this.localSelection.question_type
+      this.localSelectionComplementText = this.getComplement(this.id)
+      if (this.localSelectionComplementText !== '') {
+        this.isComplementPresent = true
+        console.log('I am here')
+      } else {
+        this.isComplementPresent = false
+        console.log('I am not here')
+      }
+      if (this.type === 'Answer') {
+        this.complementType = 'Question'
+      } else {
+        this.complementType = 'Answer'
+      }
     },
     saveData (event) {
       this.$modal.hide('modalAdaptive')
@@ -70,9 +84,13 @@ export default {
       id: '',
       updateSelectionById: '',
       getSelectionById: '',
+      getComplement: '',
       localSelection: '',
       selectionName: '',
       localSelectionUpdated: '',
+      localSelectionComplementText: '',
+      complementType: '',
+      isComplementPresent: 0,
       type: '',
       marks: '',
       qnum: '',

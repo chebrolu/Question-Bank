@@ -153,7 +153,11 @@ export default {
       // this.subQuesReg = '\\([a-zA-Z]\\)'
       // this.ansReg = 'Answer'
       // this.marksReg = '\\(\\d+\\spoints\\)'
-      this.pdfPath = this.pdfDir + '/' + this.name
+      if (this.pdfDir === '') {
+        this.pdfPath = this.name
+      } else {
+        this.pdfPath = this.pdfDir + '/' + this.name
+      }
       this.setPDFPath(this.pdfPath)
       this.inputData = {}
       this.inputData['ques_reg'] = this.quesReg
